@@ -9,7 +9,10 @@ SWIFTC_FLAGS = -target arm64-apple-macosx13.0 -framework Cocoa -framework Carbon
 
 # Use the stable self-signed identity if present (see setup-signing.sh), else ad-hoc.
 SIGN_IDENTITY = CaptainUtils Dev
-HAVE_IDENTITY = $(shell security find-identity -v -p codesigning 2>/dev/null | grep -c "$(SIGN_IDENTITY)")
+# Note: no -v flag. A self-signed dev cert is untrusted (CSSMERR_TP_NOT_TRUSTED)
+# so it is excluded from the -v "valid identities" list, but codesign can still
+# sign with it. Match against the full (non-validated) identity list instead.
+HAVE_IDENTITY = $(shell security find-identity -p codesigning 2>/dev/null | grep -c "$(SIGN_IDENTITY)")
 
 .PHONY: build clean install run setup-signing
 
