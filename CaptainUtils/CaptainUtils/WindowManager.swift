@@ -75,14 +75,31 @@ struct WindowManager {
     }
 
     private static func focusedWindow() -> AXUIElement? {
-        let systemWide = AXUIElementCreateSystemWide()
-        var appRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedApplicationAttribute as CFString, &appRef) == .success else { return nil }
+        // Resolve the frontmost app via NSWorkspace rather than the system-wide
+        // AX focused-application attribute. Chrome (and some other apps) return
+        // kAXErrorNoValue (-25212) for kAXFocusedApplicationAttribute on the
+        // system-wide element, so that path silently fails for them.
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else { return nil }
+        let pid = frontApp.processIdentifier
+        let app = AXUIElementCreateApplication(pid)
 
         var windowRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appRef as! AXUIElement, kAXFocusedWindowAttribute as CFString, &windowRef) == .success else { return nil }
+        var err = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef)
 
-        return (windowRef as! AXUIElement)
+        // Chromium/Electron apps may not expose their accessibility tree until
+        // AXManualAccessibility is set. Set it and retry.
+        if err != .success {
+            AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+            err = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef)
+        }
+
+        // Some apps expose a main window but no "focused" window. Fall back.
+        if err != .success {
+            err = AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute as CFString, &windowRef)
+        }
+
+        guard err == .success, let ref = windowRef else { return nil }
+        return (ref as! AXUIElement)
     }
 
     private static func getFrame(of window: AXUIElement) -> CGRect? {
