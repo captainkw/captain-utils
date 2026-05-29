@@ -10,6 +10,12 @@ enum WindowAction {
 }
 
 struct WindowManager {
+    // Quarter-chord: pressing two perpendicular halves on the same modifier within
+    // this window (e.g. ⌃⌥⌘→ then ⌃⌥⌘↑) upgrades the result to the matching corner.
+    private static let chordWindow: TimeInterval = 0.5
+    private static var lastHalf: WindowAction?
+    private static var lastHalfTime: TimeInterval = 0
+
     static func perform(_ action: WindowAction) {
         guard let window = focusedWindow() else { return }
         guard let currentFrame = getFrame(of: window) else { return }
@@ -19,12 +25,14 @@ struct WindowManager {
 
         switch action {
         case .snapBack:
+            lastHalf = nil
             if let restored = SnapBackStore.shared.restore(window: window) {
                 setFrame(of: window, to: restored)
             }
             return
 
         case .nextMonitor:
+            lastHalf = nil
             guard let target = ScreenManager.nextScreen(from: screen) else { return }
             SnapBackStore.shared.save(window: window, frame: currentFrame)
             let targetVisible = ScreenManager.visibleFrame(for: target)
@@ -38,6 +46,7 @@ struct WindowManager {
             return
 
         case .prevMonitor:
+            lastHalf = nil
             guard let target = ScreenManager.prevScreen(from: screen) else { return }
             SnapBackStore.shared.save(window: window, frame: currentFrame)
             let targetVisible = ScreenManager.visibleFrame(for: target)
@@ -50,28 +59,60 @@ struct WindowManager {
             setFrame(of: window, to: centered)
             return
 
+        case .leftHalf, .rightHalf, .topHalf, .bottomHalf:
+            handleHalf(action, window: window, currentFrame: currentFrame, screen: screen)
+            return
+
         default:
             break
         }
 
+        // Explicit quarter / fullscreen / center: reset any pending chord.
+        lastHalf = nil
         SnapBackStore.shared.save(window: window, frame: currentFrame)
+        setFrame(of: window, to: frame(for: action, on: screen, windowSize: currentFrame.size))
+    }
 
-        let targetFrame: CGRect
-        switch action {
-        case .leftHalf:    targetFrame = ScreenManager.leftHalf(on: screen)
-        case .rightHalf:   targetFrame = ScreenManager.rightHalf(on: screen)
-        case .topHalf:     targetFrame = ScreenManager.topHalf(on: screen)
-        case .bottomHalf:  targetFrame = ScreenManager.bottomHalf(on: screen)
-        case .upperLeft:   targetFrame = ScreenManager.upperLeft(on: screen)
-        case .upperRight:  targetFrame = ScreenManager.upperRight(on: screen)
-        case .lowerLeft:   targetFrame = ScreenManager.lowerLeft(on: screen)
-        case .lowerRight:  targetFrame = ScreenManager.lowerRight(on: screen)
-        case .fullScreen:  targetFrame = ScreenManager.fullScreen(on: screen)
-        case .center:      targetFrame = ScreenManager.centered(on: screen, windowSize: currentFrame.size)
-        default: return
+    private static func handleHalf(_ half: WindowAction, window: AXUIElement, currentFrame: CGRect, screen: NSScreen) {
+        let now = ProcessInfo.processInfo.systemUptime
+
+        // Second perpendicular half within the window → upgrade to a corner.
+        // Keep the SnapBack frame saved by the first half (the original frame).
+        if let prev = lastHalf, now - lastHalfTime <= chordWindow, let corner = quarter(from: prev, and: half) {
+            lastHalf = nil
+            setFrame(of: window, to: frame(for: corner, on: screen, windowSize: currentFrame.size))
+            return
         }
 
-        setFrame(of: window, to: targetFrame)
+        SnapBackStore.shared.save(window: window, frame: currentFrame)
+        lastHalf = half
+        lastHalfTime = now
+        setFrame(of: window, to: frame(for: half, on: screen, windowSize: currentFrame.size))
+    }
+
+    private static func quarter(from a: WindowAction, and b: WindowAction) -> WindowAction? {
+        let pair = Set([a, b])
+        if pair == [.rightHalf, .topHalf]    { return .upperRight }
+        if pair == [.rightHalf, .bottomHalf] { return .lowerRight }
+        if pair == [.leftHalf, .topHalf]     { return .upperLeft }
+        if pair == [.leftHalf, .bottomHalf]  { return .lowerLeft }
+        return nil  // same axis (e.g. left+right) is not a corner
+    }
+
+    private static func frame(for action: WindowAction, on screen: NSScreen, windowSize: CGSize) -> CGRect {
+        switch action {
+        case .leftHalf:    return ScreenManager.leftHalf(on: screen)
+        case .rightHalf:   return ScreenManager.rightHalf(on: screen)
+        case .topHalf:     return ScreenManager.topHalf(on: screen)
+        case .bottomHalf:  return ScreenManager.bottomHalf(on: screen)
+        case .upperLeft:   return ScreenManager.upperLeft(on: screen)
+        case .upperRight:  return ScreenManager.upperRight(on: screen)
+        case .lowerLeft:   return ScreenManager.lowerLeft(on: screen)
+        case .lowerRight:  return ScreenManager.lowerRight(on: screen)
+        case .fullScreen:  return ScreenManager.fullScreen(on: screen)
+        case .center:      return ScreenManager.centered(on: screen, windowSize: windowSize)
+        default:           return .zero
+        }
     }
 
     private static func focusedWindow() -> AXUIElement? {
