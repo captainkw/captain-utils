@@ -1,6 +1,5 @@
 import Cocoa
 import ApplicationServices
-import ServiceManagement
 
 func log(_ msg: String) {
     fputs("[CaptainUtils] \(msg)\n", stderr)
@@ -37,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(accessibilityMenuItem)
 
         let loginItem = NSMenuItem(title: "Start at Login", action: #selector(toggleLoginItem), keyEquivalent: "")
-        loginItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        loginItem.state = isLoginItemEnabled() ? .on : .off
         menu.addItem(loginItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -56,15 +55,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         startPollingForAccessibility()
     }
 
+    private static let launchAgentPlistPath: String = {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/Library/LaunchAgents/com.captainutils.app.plist"
+    }()
+
+    private func isLoginItemEnabled() -> Bool {
+        FileManager.default.fileExists(atPath: Self.launchAgentPlistPath)
+    }
+
     @objc private func toggleLoginItem(_ sender: NSMenuItem) {
-        let service = SMAppService.mainApp
         do {
-            if service.status == .enabled {
-                try service.unregister()
+            if isLoginItemEnabled() {
+                try FileManager.default.removeItem(atPath: Self.launchAgentPlistPath)
                 sender.state = .off
                 log("login item unregistered")
             } else {
-                try service.register()
+                let appPath = Bundle.main.bundlePath
+                let plist = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                <plist version="1.0">
+                <dict>
+                    <key>Label</key>
+                    <string>com.captainutils.app</string>
+                    <key>ProgramArguments</key>
+                    <array>
+                        <string>\(appPath)/Contents/MacOS/CaptainUtils</string>
+                    </array>
+                    <key>RunAtLoad</key>
+                    <true/>
+                </dict>
+                </plist>
+                """
+                try plist.write(toFile: Self.launchAgentPlistPath, atomically: true, encoding: .utf8)
                 sender.state = .on
                 log("login item registered")
             }

@@ -127,9 +127,10 @@ struct WindowManager {
         var windowRef: CFTypeRef?
         var err = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef)
 
-        // Chromium/Electron apps may not expose their accessibility tree until
-        // AXManualAccessibility is set. Set it and retry.
+        // Chrome needs AXEnhancedUserInterface; other Chromium/Electron apps need
+        // AXManualAccessibility. Set both and retry.
         if err != .success {
+            AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
             AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString, kCFBooleanTrue)
             err = AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &windowRef)
         }
@@ -162,10 +163,12 @@ struct WindowManager {
         var size = frame.size
 
         if let posValue = AXValueCreate(.cgPoint, &pos) {
-            AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, posValue)
+            let err = AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, posValue)
+            if err != .success { log("setPosition error: \(err.rawValue)") }
         }
         if let sizeValue = AXValueCreate(.cgSize, &size) {
-            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
+            let err = AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
+            if err != .success { log("setSize error: \(err.rawValue)") }
         }
     }
 }
