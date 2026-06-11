@@ -88,6 +88,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 </dict>
                 </plist>
                 """
+                // ~/Library/LaunchAgents doesn't exist on a fresh Mac until something
+                // writes there; create it so the plist write below doesn't fail.
+                let plistDir = (Self.launchAgentPlistPath as NSString).deletingLastPathComponent
+                try FileManager.default.createDirectory(
+                    atPath: plistDir, withIntermediateDirectories: true)
                 try plist.write(toFile: Self.launchAgentPlistPath, atomically: true, encoding: .utf8)
                 sender.state = .on
                 log("login item registered")
