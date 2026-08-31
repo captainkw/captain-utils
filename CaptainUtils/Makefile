@@ -5,7 +5,7 @@ SOURCES = $(SRC_DIR)/main.swift $(SRC_DIR)/AppDelegate.swift $(SRC_DIR)/HotkeyMa
 BUNDLE = $(APP_NAME).app
 BINARY = $(BUNDLE)/Contents/MacOS/$(APP_NAME)
 
-SWIFTC_FLAGS = -framework Cocoa -framework Carbon -framework ApplicationServices -framework ServiceManagement
+SWIFTC_FLAGS = -framework Cocoa -framework SwiftUI -framework Carbon -framework ApplicationServices -framework ServiceManagement
 
 # Use the stable self-signed identity if present (see setup-signing.sh), else ad-hoc.
 SIGN_IDENTITY = CaptainUtils Dev

@@ -59,6 +59,20 @@ struct WindowManager {
             setFrame(of: window, to: centered)
             return
 
+        case .center:
+            lastHalf = nil
+            SnapBackStore.shared.save(window: window, frame: currentFrame)
+
+            guard CenterWindowSettings.isResizeEnabled else {
+                setFrame(of: window, to: frame(for: action, on: screen, windowSize: currentFrame.size))
+                return
+            }
+
+            let visibleFrame = ScreenManager.visibleFrame(for: screen)
+            let targetSize = CenterWindowSettings.targetSize(in: visibleFrame)
+            setCenteredFrame(of: window, to: targetSize, on: screen)
+            return
+
         case .leftHalf, .rightHalf, .topHalf, .bottomHalf:
             handleHalf(action, window: window, currentFrame: currentFrame, screen: screen)
             return
@@ -67,7 +81,7 @@ struct WindowManager {
             break
         }
 
-        // Explicit quarter / fullscreen / center: reset any pending chord.
+        // Explicit quarter / fullscreen: reset any pending chord.
         lastHalf = nil
         SnapBackStore.shared.save(window: window, frame: currentFrame)
         setFrame(of: window, to: frame(for: action, on: screen, windowSize: currentFrame.size))
@@ -169,6 +183,21 @@ struct WindowManager {
         if let sizeValue = AXValueCreate(.cgSize, &size) {
             let err = AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
             if err != .success { log("setSize error: \(err.rawValue)") }
+        }
+    }
+
+    private static func setCenteredFrame(of window: AXUIElement, to targetSize: CGSize, on screen: NSScreen) {
+        var size = targetSize
+        if let sizeValue = AXValueCreate(.cgSize, &size) {
+            let err = AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, sizeValue)
+            if err != .success { log("setSize error: \(err.rawValue)") }
+        }
+
+        let actualSize = getFrame(of: window)?.size ?? targetSize
+        var position = ScreenManager.centered(on: screen, windowSize: actualSize).origin
+        if let positionValue = AXValueCreate(.cgPoint, &position) {
+            let err = AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, positionValue)
+            if err != .success { log("setPosition error: \(err.rawValue)") }
         }
     }
 }
