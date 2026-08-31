@@ -15,6 +15,7 @@ SizeUp was last updated in 2021 and is Intel-only. Rosetta 2 is being phased out
 - Menu bar app with no Dock icon
 - Optional Start at Login (via SMAppService)
 - Restore previous window position with SnapBack
+- Optional absolute or screen-relative resizing when centering a window
 
 ## Keyboard Shortcuts
 
@@ -44,7 +45,7 @@ SizeUp was last updated in 2021 and is Intel-only. Rosetta 2 is being phased out
 | Shortcut | Action |
 |----------|--------|
 | ⌃⌥⌘M | Fullscreen (maximize, not native macOS fullscreen) |
-| ⌃⌥⌘C | Center window |
+| ⌃⌥⌘C | Center window (optionally resize) |
 | ⌃⌥⌘/ | SnapBack (restore previous window position) |
 
 > Note: Spaces shortcuts (⌃⌘+arrows) from SizeUp are not implemented. Modern macOS has no public API to move windows between Spaces or switch Spaces programmatically. Those key combos remain free for you to bind elsewhere.
@@ -56,10 +57,11 @@ SizeUp was last updated in 2021 and is Intel-only. Rosetta 2 is being phased out
 - **Multi-monitor** uses `NSScreen.screens`, sorted by `frame.origin.x` for consistent left-to-right ordering.
 - **SnapBack** saves the previous window frame in memory keyed by `(pid, window title)` before every move/resize. The snapback hotkey restores it.
 - **Coordinate handling**: Accessibility uses top-left origin in primary-screen coordinates. `NSScreen` uses bottom-left. The app converts between them.
+- **Center sizing** can preserve the current window size, use an absolute size in points, or use independent percentages of the current display's usable area. Preferences are stored in `UserDefaults`.
 
 ## Architecture
 
-Six Swift files, ~300 lines total.
+Six Swift files.
 
 | File | Responsibility |
 |------|----------------|
@@ -113,9 +115,14 @@ Or just `open CaptainUtils.app`.
 |------|--------------|
 | About CaptainUtils | Version info |
 | Shortcuts | Show all keyboard shortcuts in a dialog |
+| Settings… | Configure optional absolute or screen-relative resizing for Center Window. |
 | Open Accessibility Settings… | Opens the Accessibility settings pane. Becomes "Granted ✓" once permission is given. |
 | Start at Login | Toggle launching CaptainUtils automatically on macOS login |
 | Quit | Quit the app |
+
+### Center Window Settings
+
+Center Window preserves the focused window's current size by default. In **Settings…**, enable **Resize when centering**, then choose either an absolute width and height in points or percentages of the current display's usable area. The usable area excludes the menu bar and Dock. For example, 95% by 95% on a 1,000 by 800 point usable area produces a 950 by 760 point centered window.
 
 ## Code Signing
 
